@@ -23,9 +23,14 @@ export const login = async (email, password) => {
 }
 
 export const logout = () => {
+  // Clear localStorage
   localStorage.removeItem('token')
   localStorage.removeItem('user')
-  window.location.href = '/login'
+  
+  // Use React Router navigation instead of window.location
+  // This will be handled by the component using useNavigate
+  // For now, return a promise that resolves
+  return Promise.resolve()
 }
 
 export const getCurrentUser = () => {
@@ -40,11 +45,14 @@ export const getCurrentUser = () => {
   try {
     const decoded = jwtDecode(token)
     if (decoded.exp * 1000 < Date.now()) {
-      logout()
+      // Token expired, clear storage
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
       return null
     }
   } catch {
-    logout()
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
     return null
   }
   

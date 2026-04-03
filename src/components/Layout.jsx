@@ -1,6 +1,6 @@
 // src/components/Layout.jsx
 import React, { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
   CreditCard, 
@@ -16,6 +16,7 @@ import {
 import { getCurrentUser, logout } from '../services/auth'
 
 const Layout = ({ children }) => {
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(() => {
@@ -43,6 +44,11 @@ const Layout = ({ children }) => {
   
   const toggleDarkMode = () => {
     setDarkMode(!darkMode)
+  }
+  
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
   }
   
   return (
@@ -185,31 +191,11 @@ const Layout = ({ children }) => {
                         </p>
                       </div>
                       
-                      {/* Dark Mode Option in Dropdown (Alternative) */}
-                      <button
-                        onClick={() => {
-                          toggleDarkMode()
-                          setUserMenuOpen(false)
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors sm:hidden"
-                      >
-                        {darkMode ? (
-                          <>
-                            <Sun className="w-4 h-4" />
-                            Light Mode
-                          </>
-                        ) : (
-                          <>
-                            <Moon className="w-4 h-4" />
-                            Dark Mode
-                          </>
-                        )}
-                      </button>
-                      
+                      {/* Logout Button */}
                       <button
                         onClick={() => {
                           setUserMenuOpen(false)
-                          logout()
+                          handleLogout()
                         }}
                         className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       >
