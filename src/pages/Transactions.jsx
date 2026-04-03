@@ -1,8 +1,39 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Filter, X } from 'lucide-react'
+import { Plus, Edit, Trash2, Filter, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from '../services/transactionService'
 import { getCurrentUser } from '../services/auth'
 import toast from 'react-hot-toast'
+
+// Helper function to format date to dd-mm-yy
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  try {
+    const date = new Date(dateString)
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = String(date.getFullYear()).slice(-2)
+    return `${day}-${month}-${year}`
+  } catch {
+    return dateString
+  }
+}
+
+// Helper function to parse dd-mm-yy to yyyy-mm-dd for API
+const parseDateForAPI = (dateString) => {
+  if (!dateString) return ''
+  try {
+    const parts = dateString.split('-')
+    if (parts.length === 3 && parts[2].length === 2) {
+      const day = parts[0].padStart(2, '0')
+      const month = parts[1].padStart(2, '0')
+      const year = `20${parts[2]}`
+      return `${year}-${month}-${day}`
+    }
+    return dateString
+  } catch {
+    return dateString
+  }
+}
 
 const Transactions = () => {
   const [transactions, setTransactions] = useState([])
@@ -11,6 +42,7 @@ const Transactions = () => {
   const [editingTransaction, setEditingTransaction] = useState(null)
   const [filters, setFilters] = useState({ type: '', category: '', start_date: '', end_date: '' })
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 })
+  const [sortDirection, setSortDirection] = useState('asc') // 'asc' or 'desc'
   const user = getCurrentUser()
   
   const isEditable = user?.role === 'admin' || user?.role === 'analyst'
@@ -42,11 +74,18 @@ const Transactions = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     const formData = new FormData(e.target)
+    
+    // Get date from input and convert to API format
+    let dateValue = formData.get('date')
+    if (dateValue && dateValue.includes('-')) {
+      dateValue = parseDateForAPI(dateValue)
+    }
+    
     const data = {
       amount: parseFloat(formData.get('amount')),
       type: formData.get('type'),
       category: formData.get('category'),
-      date: formData.get('date')
+      date: dateValue
     }
     
     try {
@@ -81,6 +120,46 @@ const Transactions = () => {
     setFilters({ type: '', category: '', start_date: '', end_date: '' })
     setPagination({ ...pagination, page: 1 })
   }
+  
+  // Get formatted date for edit modal
+  const getFormattedDateForEdit = (dateString) => {
+    if (!dateString) return ''
+    return formatDate(dateString)
+  }
+  
+  // Toggle date sort direction
+  const toggleSortDirection = () => {
+    setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+  }
+  
+  // Get sorted transactions by date only
+  const getSortedTransactions = () => {
+    const sortedTransactions = [...transactions]
+    
+    sortedTransactions.sort((a, b) => {
+      const dateA = new Date(a.date)
+      const dateB = new Date(b.date)
+      
+      if (sortDirection === 'asc') {
+        return dateA - dateB  // Oldest first
+      } else {
+        return dateB - dateA  // Newest first
+      }
+    })
+    
+    return sortedTransactions
+  }
+  
+  // Get sort icon
+  const getSortIcon = () => {
+    if (sortDirection === 'asc') {
+      return <ArrowUp className="w-3 h-3 ml-1 inline" />
+    } else {
+      return <ArrowDown className="w-3 h-3 ml-1 inline" />
+    }
+  }
+  
+  const sortedTransactions = getSortedTransactions()
   
   return (
     <div className="space-y-6">
@@ -157,10 +236,23 @@ const Transactions = () => {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount</th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  onClick={toggleSortDirection}
+                >
+                  <span className="flex items-center">
+                    Date {getSortIcon()}
+                  </span>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Category
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Amount
+                </th>
                 {isEditable && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>}
               </tr>
             </thead>
@@ -174,16 +266,18 @@ const Transactions = () => {
                     </div>
                   </td>
                 </tr>
-              ) : transactions.length === 0 ? (
+              ) : sortedTransactions.length === 0 ? (
                 <tr>
                   <td colSpan={isEditable ? 5 : 4} className="px-6 py-4 text-center text-gray-500">
                     No transactions found
                   </td>
                 </tr>
               ) : (
-                transactions.map((transaction) => (
+                sortedTransactions.map((transaction) => (
                   <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{transaction.date}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                      {formatDate(transaction.date)}
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{transaction.category}</td>
                     <td className="px-6 py-4 text-sm">
                       <span className={`px-2 py-1 text-xs rounded-full ${
@@ -313,12 +407,14 @@ const Transactions = () => {
                     Date <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="date"
+                    type="text"
                     name="date"
-                    defaultValue={editingTransaction?.date}
+                    defaultValue={editingTransaction ? getFormattedDateForEdit(editingTransaction.date) : ''}
                     required
+                    placeholder="dd-mm-yy"
                     className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Format: dd-mm-yy (e.g., 15-04-26)</p>
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
