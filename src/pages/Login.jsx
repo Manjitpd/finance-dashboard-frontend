@@ -5,58 +5,90 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { login } from '../services/auth'
 import toast from 'react-hot-toast'
-import { DollarSign, Loader2, Wifi, WifiOff } from 'lucide-react'
+import { DollarSign, Loader2, Wifi, WifiOff, AlertCircle } from 'lucide-react'
 
 const schema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string()
+    .min(1, 'Email is required')
+    .email('Please enter a valid email address'),
+  password: z.string()
+    .min(1, 'Password is required')
+    .min(4, 'Password must be at least 4 characters'),
 })
 
 const Login = () => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState('idle') // idle, connecting, connected, error
+  const [errorMessage, setErrorMessage] = useState('')
   
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    resolver: zodResolver(schema)
+  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm({
+    resolver: zodResolver(schema),
+    mode: 'onBlur' // Validate on blur for better UX
   })
+  
+  // Watch form values to clear error message when user starts typing
+  const watchEmail = watch('email')
+  const watchPassword = watch('password')
+  
+  // Clear error message when user starts typing
+  React.useEffect(() => {
+    if (errorMessage && (watchEmail || watchPassword)) {
+      setErrorMessage('')
+    }
+  }, [watchEmail, watchPassword, errorMessage])
   
   const onSubmit = async (data) => {
     setLoading(true)
     setConnectionStatus('connecting')
-    
-    // Simulate connection delay for animation (remove in production)
-    const connectionTimer = setTimeout(() => {
-      setConnectionStatus('connected')
-    }, 1000)
+    setErrorMessage('')
     
     try {
       const user = await login(data.email, data.password)
-      clearTimeout(connectionTimer)
       setConnectionStatus('connected')
       
       // Success animation delay before redirect
       setTimeout(() => {
-        toast.success(`Welcome ${user.email || 'User'}!`)
+        toast.success(`Welcome ${user.email?.split('@')[0] || 'User'}!`)
         navigate('/')
       }, 500)
     } catch (error) {
-      clearTimeout(connectionTimer)
-      setConnectionStatus('error')
       console.error('Login failed:', error)
+      
+      // Set error message based on error type
+      let message = error.message || 'Login failed. Please try again.'
+      
+      // Customize messages for common errors
+      if (message.includes('Invalid email or password') || 
+          message.includes('Invalid credentials') ||
+          message.includes('401')) {
+        message = 'Invalid email or password. Please try again.'
+      } else if (message.includes('email and password') || message.includes('422')) {
+        message = 'Please enter both email and password.'
+      } else if (message.includes('Network Error')) {
+        message = 'Unable to connect to server. Please check your internet connection.'
+      } else if (message.includes('No access token')) {
+        message = 'Authentication failed. Please try again.'
+      }
+      
+      setErrorMessage(message)
+      toast.error(message)
+      setConnectionStatus('error')
+      
+      // Clear only password field on error for security
+      reset({ email: data.email, password: '' })
       
       // Reset connection status after error
       setTimeout(() => {
         setConnectionStatus('idle')
-      }, 2000)
+      }, 3000)
     } finally {
-      // Don't set loading false immediately - let animation complete
       setTimeout(() => {
         setLoading(false)
         if (connectionStatus !== 'error') {
           setConnectionStatus('idle')
         }
-      }, 1500)
+      }, 1000)
     }
   }
   
@@ -97,8 +129,20 @@ const Login = () => {
           Finance Dashboard Login
         </h2>
         
+        {/* Error Message Display */}
+        {errorMessage && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg animate-shake">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {errorMessage}
+              </p>
+            </div>
+          </div>
+        )}
+        
         {/* Connection status message */}
-        {connectionStatus === 'connecting' && (
+        {connectionStatus === 'connecting' && !errorMessage && (
           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg animate-pulse">
             <p className="text-sm text-blue-600 dark:text-blue-400 text-center flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -107,7 +151,7 @@ const Login = () => {
           </div>
         )}
         
-        {connectionStatus === 'connected' && (
+        {connectionStatus === 'connected' && !errorMessage && (
           <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg animate-slide-down">
             <p className="text-sm text-green-600 dark:text-green-400 text-center flex items-center justify-center gap-2">
               <Wifi className="w-4 h-4" />
@@ -116,29 +160,23 @@ const Login = () => {
           </div>
         )}
         
-        {connectionStatus === 'error' && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 rounded-lg animate-shake">
-            <p className="text-sm text-red-600 dark:text-red-400 text-center flex items-center justify-center gap-2">
-              <WifiOff className="w-4 h-4" />
-              Connection failed. Please try again.
-            </p>
-          </div>
-        )}
-        
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Email
+              Email <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
               {...register('email')}
               disabled={loading}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.email ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+              }`}
               placeholder="admin@example.com"
             />
             {errors.email && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400 animate-slide-down">
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400 animate-slide-down flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
                 {errors.email.message}
               </p>
             )}
@@ -146,17 +184,20 @@ const Login = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Password
+              Password <span className="text-red-500">*</span>
             </label>
             <input
               type="password"
               {...register('password')}
               disabled={loading}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+              }`}
               placeholder="••••••••"
             />
             {errors.password && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400 animate-slide-down">
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400 animate-slide-down flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
                 {errors.password.message}
               </p>
             )}
@@ -185,7 +226,7 @@ const Login = () => {
               </span>
             )}
           </button>
-        </form>        
+        </form>
       </div>
       
       <style jsx>{`
@@ -202,13 +243,28 @@ const Login = () => {
         
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-5px); }
-          75% { transform: translateX(5px); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+          20%, 40%, 60%, 80% { transform: translateX(5px); }
         }
         
         @keyframes progressBar {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(0%); }
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        
+        .animate-fade-in {
+          animation: fadeIn 0.3s ease-out;
         }
         
         .animate-slide-down {
