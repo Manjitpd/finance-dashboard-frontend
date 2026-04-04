@@ -1,7 +1,6 @@
-// src/pages/Users.jsx
 import React, { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, X, Shield } from 'lucide-react'
-import { getUsers, createUser, updateUser, deleteUser } from '../services/userService'
+import { Plus, Edit, Trash2, X, Power, PowerOff } from 'lucide-react'
+import { getUsers, createUser, updateUser, deleteUser, toggleUserStatus } from '../services/userService'
 import toast from 'react-hot-toast'
 
 const Users = () => {
@@ -77,6 +76,22 @@ const Users = () => {
         error.response?.data?.detail ||
         'Something went wrong'
       )
+    }
+  }
+
+  const handleToggleStatus = async (user) => {
+    const newStatus = !user.is_active
+    const action = newStatus ? 'activate' : 'deactivate'
+    
+    if (window.confirm(`Are you sure you want to ${action} ${user.name}?`)) {
+      try {
+        await toggleUserStatus(user.id)
+        toast.success(`User ${action}d successfully`)
+        fetchUsers()
+      } catch (error) {
+        console.error('Error toggling user status:', error)
+        toast.error(error.response?.data?.detail || 'Failed to toggle user status')
+      }
     }
   }
 
@@ -172,7 +187,9 @@ const Users = () => {
                 users.map((user) => (
                   <tr
                     key={user.id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                      !user.is_active ? 'opacity-60 bg-gray-50 dark:bg-gray-900' : ''
+                    }`}
                   >
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
                       {user.name}
@@ -189,9 +206,26 @@ const Users = () => {
                     </td>
 
                     <td className="px-6 py-4 text-sm">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadge(user.is_active)}`}>
-                        {user.is_active ? 'Active' : 'Inactive'}
-                      </span>
+                      <button
+                        onClick={() => handleToggleStatus(user)}
+                        className={`px-2 py-1 text-xs rounded-full flex items-center gap-1 transition-all duration-200 ${
+                          user.is_active
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-200 dark:hover:bg-green-800'
+                            : 'bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-200 dark:hover:bg-red-800'
+                        }`}
+                      >
+                        {user.is_active ? (
+                          <>
+                            <Power className="w-3 h-3" />
+                            Active
+                          </>
+                        ) : (
+                          <>
+                            <PowerOff className="w-3 h-3" />
+                            Inactive
+                          </>
+                        )}
+                      </button>
                     </td>
 
                     <td className="px-6 py-4 text-sm">

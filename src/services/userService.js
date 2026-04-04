@@ -18,3 +18,9 @@ export const updateUser = async (id, data) => {
 export const deleteUser = async (id) => {
   await api.delete(`/users/${id}`)
 }
+
+// Add this new function for toggling user status
+export const toggleUserStatus = async (id) => {
+  const response = await api.patch(`/users/${id}/toggle-status`)
+  return response.data
+}
